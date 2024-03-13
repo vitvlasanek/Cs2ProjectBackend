@@ -1,63 +1,121 @@
-﻿using System.Data.Common;
+﻿using System.Data;
+using System.Data.Common;
+using System.Reflection;
 using System.Text;
+using Vitvlasanek.Cs2.Project.Backend.ORM.Attributes;
+using Vitvlasanek.Cs2.Project.Backend.ORM.Extensions;
+using Vitvlasanek.Cs2.Project.Backend.ORM.Sessions;
 using Vitvlasanek.Cs2.Project.Backend.ORM.SqlSyntaxes;
 
 namespace Vitvlasanek.Cs2.Project.Backend.ORM
 {
     public abstract class RowDataGatewayBase<T> where T : class
     {
+        [PrimaryKey]
+        public long? Id { get; internal set; }
 
-        public ISqlSyntax Syntax { get; set; } = new SqlSyntax(SqlSyntaxType.None);
+        [DbIgnore]
+        public static SqlSyntaxType Syntax { get; set; } = SqlSyntaxType.None;
 
-        public string GetName()
+        [DbIgnore]
+        IDbSession? Session { get; set; }
+
+
+        public string GetName() => this.GetType().Name;
+
+        public static IEnumerable<string> GetPropertyNames(bool ignorePk = false)
         {
-            return this.GetType().Name;
+            var properties = typeof(T).GetProperties().ToList();
+
+            if (ignorePk)
+            {
+                properties = properties.Where(_ => !Attribute.IsDefined(_, typeof(PrimaryKey))).ToList();
+            }
+
+            return properties.Select(p => p.Name);
         }
 
-        public IEnumerable<string> GetPropertyNames()
+        public Dictionary<string, object?> GetPropertiesDictionary(bool ignorePk = false)
         {
-            return this.GetType()
-                .GetProperties()
-                .Select(p => p.Name);
+            var propertiesDictionary = new Dictionary<string, object?>();
+
+            var properties = typeof(T).GetProperties().Where(_ => !Attribute.IsDefined(_, typeof(DbIgnore)));
+
+            if (ignorePk)
+            {
+                properties = properties.Where(_ => !Attribute.IsDefined(_, typeof(PrimaryKey)));
+            }
+
+            foreach (PropertyInfo property in properties)
+            {
+                var name = property.Name;
+                var value = property.GetValue(this);
+
+
+                propertiesDictionary[property.Name] = property.GetValue(this);
+            }
+
+            return propertiesDictionary;
         }
 
-
-        public string GenerateSelectQuery()
+        internal static IDbDataParameter CreateParameter(IDbCommand command, KeyValuePair<string, object?> property, int? Id = null)
         {
-            var query = new SqlCommandSelect<T>(Syntax);
-            return query.ToString();
+            string idSuffix = string.Empty;
+
+            if (Id is not null)
+            {
+                idSuffix = $"_{Id}";
+            }
+
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = $"@{property.Key}{idSuffix}";
+            parameter.Value = property.Value;
+
+            return parameter;
         }
 
-        internal void Insert(IDbSession session)
+        public bool TableExists(DbConnection connection)
         {
+            string tableName = this.GetName();
 
-            Type type = typeof(T);
+            var schema = connection.GetSchema("Tables");
+            foreach (DataRow row in schema.Rows)
+            {
+                var table = (string)row[2];
+                if (table.Equals(tableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
 
-            Type type1 = GetType();
-
-
-            DbConnection conn = null;
+            return false;
         }
 
-        //internal static IEnumerable<RowDataGatewayBase<T>> ExecuteSelectQuery(SqlQuery<T> query)
-        //{
+        void CreateTable(DbConnection connection)
+        {
+            var propertiesDictionary = this.GetPropertiesDictionary(true);
 
-        //    var queryString = query.Get();
-        //    return new List<RowDataGatewayBase<T>>();
-        //}
+            var mappedProps = propertiesDictionary.Select(_ => $"{_.Key} {_.Key.ToDbType()}");
+
+            //TODO: multiple PKs
+            var pk = this.GetType().GetProperties().FirstOrDefault(_ => Attribute.IsDefined(_, typeof(PrimaryKey)));
+
+            var sb = new StringBuilder("CREATE TABLE ")
+                .Append(this.GetName())
+                .Append(" (")
+                .Append(pk!.Name)
+                .Append(" INTEGER PRIMARY KEY NOT NULL, ")
+                .Append(String.Join(", ", mappedProps))
+                .Append(");")
+                ;
 
 
-        //internal static int ExecuteSelectScalarQuery<S>(SqlQuery<T> query) where S : struct
-        //{
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = sb.ToString();
+                command.ExecuteNonQuery();
+            }
 
-        //    var queryString = query.Get();
-        //    return 0;
-        //}
-
-        //public static SqlQuery<T> SelectAsQuery(IDbSession session)
-        //{
-        //    return new SqlQuery<T>(Syntax);
-        //}
-
+        }
     }
 }

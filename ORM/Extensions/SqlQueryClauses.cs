@@ -1,12 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using System.Runtime.CompilerServices;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Numerics;
 
-namespace Vitvlasanek.Cs2.Project.Backend.ORM
+namespace Vitvlasanek.Cs2.Project.Backend.ORM.Extensions
 {
     public static class SqlQueryClauses
     {
@@ -24,11 +18,11 @@ namespace Vitvlasanek.Cs2.Project.Backend.ORM
 
         public static SqlCommandSelect<T> In<T>(this SqlCommandSelect<T> query, string what, ICollection<string> values) where T : class
         {
-            query.Wheres.Add($" WHERE {what} IN ({String.Join(", ", values)})");
+            query.Wheres.Add($" WHERE {what} IN ({string.Join(", ", values)})");
             return query;
         }
 
-        public static SqlCommandSelect<T> Between<T, Num>(this SqlCommandSelect<T> query, string what, Num lower, Num upper ) where T : class where Num : INumber<Num>
+        public static SqlCommandSelect<T> Between<T, Num>(this SqlCommandSelect<T> query, string what, Num lower, Num upper) where T : class where Num : INumber<Num>
         {
             query.Wheres.Add($" WHERE {what} BETWEEN {lower} AND {upper}");
             return query;

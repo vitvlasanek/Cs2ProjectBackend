@@ -1,14 +1,13 @@
-﻿using System.Collections;
-using System.Text;
+﻿using System.Text;
 using Vitvlasanek.Cs2.Project.Backend.ORM.SqlSyntaxes;
 
 namespace Vitvlasanek.Cs2.Project.Backend.ORM
 {
     public class SqlCommandSelect<T> where T : class
     {
-        public SqlCommandSelect(ISqlSyntax syntax)
+        public SqlCommandSelect(SqlSyntaxType syntax)
         {
-            Syntax = syntax;
+            Syntax = new SqlSyntax(syntax);
             this.SetToAllAttributes();
         }
 
